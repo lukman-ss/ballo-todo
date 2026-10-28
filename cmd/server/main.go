@@ -22,6 +22,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create app: %v", err)
 	}
+	defer app.Close()
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,

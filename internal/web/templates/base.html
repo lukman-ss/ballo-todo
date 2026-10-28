@@ -1,0 +1,30 @@
+{{define "base"}}<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{template "title" .}} — Ballo Todo</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="nav-header">
+    <div class="container">
+      <a href="/" class="app-name">Ballo Todo</a>
+    </div>
+  </header>
+
+  {{if .Flash.Message}}
+  <div class="flash flash--{{.Flash.Type}}" role="alert">
+    <div class="container">{{.Flash.Message}}</div>
+  </div>
+  {{end}}
+
+  <main class="main-content">
+    <div class="container">
+      {{template "content" .}}
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>{{end}}

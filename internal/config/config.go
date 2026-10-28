@@ -19,6 +19,9 @@ type Config struct {
 	ShutdownTimeout       time.Duration
 	MaxBodyBytes          int64
 	LogLevel              string
+	DBPath                string
+	Timezone              string
+	TemplateDir           string
 }
 
 // Load loads configuration from environment variables with safe defaults.
@@ -33,6 +36,9 @@ func Load() (*Config, error) {
 		ShutdownTimeout:       10 * time.Second,
 		MaxBodyBytes:          1048576, // 1 MB
 		LogLevel:              getEnv("LOG_LEVEL", "info"),
+		DBPath:                getEnv("DB_PATH", "./data/ballo-todo.db"),
+		Timezone:              getEnv("TZ", "Asia/Jakarta"),
+		TemplateDir:           getEnv("TEMPLATE_DIR", "internal/web/templates"),
 	}
 
 	if v := os.Getenv("HTTP_READ_HEADER_TIMEOUT"); v != "" {

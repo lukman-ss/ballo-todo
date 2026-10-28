@@ -1,9 +1,13 @@
 package app
 
 import (
+	"database/sql"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -12,6 +16,9 @@ import (
 	"github.com/lukman-ss/ballo-todo/internal/config"
 	"github.com/lukman-ss/ballo-todo/internal/http/handler"
 	"github.com/lukman-ss/ballo-todo/internal/task"
+	"github.com/lukman-ss/ballo-todo/internal/todo"
+	"github.com/lukman-ss/ballo-todo/internal/web"
+	_ "modernc.org/sqlite"
 )
 
 // App encapsulates the Ballo engine, configuration, and app components.
@@ -20,6 +27,7 @@ type App struct {
 	engine *ballo.Engine
 	ready  *atomic.Bool
 	logger *slog.Logger
+	db     *sql.DB
 }
 
 // New constructs and wires the Ballo application.
@@ -30,15 +38,47 @@ func New(cfg *config.Config) (*App, error) {
 
 	logger := newLogger(cfg.LogLevel)
 
+	loc, err := time.LoadLocation(cfg.Timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+
+	if err := os.MkdirAll(filepath.Dir(cfg.DBPath), 0755); err != nil {
+		return nil, err
+	}
+
+	db, err := sql.Open("sqlite", cfg.DBPath)
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+
+	if err := todo.Migrate(db); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	todoStore := todo.NewStore(db, loc)
+
+	templateDir := cfg.TemplateDir
+	if templateDir == "" {
+		templateDir = "internal/web/templates"
+	}
+	renderer, err := web.NewRenderer(templateDir, loc)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	webHandler := handler.NewWebHandler(todoStore, renderer, loc, cfg.MaxBodyBytes)
+
 	ready := &atomic.Bool{}
 	ready.Store(false)
 
 	engine := ballo.New()
 
-	// Global recovery middleware
 	engine.Use(ballo.RecoveryMiddleware())
+	engine.Use(web.CSRFMiddleware())
 
-	// Access logging middleware with timing (never logs credentials/headers/body)
 	engine.Use(func(next ballo.Handler) ballo.Handler {
 		return func(req *ballo.Request) (*ballo.Response, error) {
 			start := time.Now()
@@ -62,29 +102,43 @@ func New(cfg *config.Config) (*App, error) {
 		}
 	})
 
-	// Custom 404 handler
 	engine.NotFound(func(req *ballo.Request) (*ballo.Response, error) {
-		return ballo.JSON(http.StatusNotFound, map[string]string{
-			"error": "resource not found",
-		}), nil
+		return ballo.JSON(http.StatusNotFound, map[string]string{"error": "resource not found"}), nil
 	})
-
-	// Custom 405 handler
 	engine.MethodNotAllowed(func(req *ballo.Request) (*ballo.Response, error) {
-		return ballo.JSON(http.StatusMethodNotAllowed, map[string]string{
-			"error": "method not allowed",
-		}), nil
+		return ballo.JSON(http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"}), nil
 	})
 
-	// Register health handlers
 	healthHandler := handler.NewHealthHandler(ready)
 	engine.GET("/healthz", healthHandler.Healthz)
 	engine.GET("/readyz", healthHandler.Readyz)
 
-	// Register task handlers
+	// Web UI routes
+	engine.GET("/", webHandler.Index)
+	engine.POST("/todos", webHandler.Create)
+	engine.GET("/todos/new", webHandler.NewForm)
+	engine.GET("/todos/:id/edit", webHandler.EditForm)
+	engine.POST("/todos/:id/edit", webHandler.EditSubmit)
+	engine.POST("/todos/:id/toggle", webHandler.Toggle)
+	engine.POST("/todos/:id/delete", webHandler.Delete)
+
+	// Static file serving via httptest recorder
+	staticFS := http.FileServer(http.Dir("internal/web/static"))
+	engine.GET("/static/*filepath", func(req *ballo.Request) (*ballo.Response, error) {
+		rec := httptest.NewRecorder()
+		http.StripPrefix("/static", staticFS).ServeHTTP(rec, req.Request)
+		result := rec.Result()
+		body, _ := io.ReadAll(result.Body)
+		return &ballo.Response{
+			StatusCode: result.StatusCode,
+			Header:     result.Header,
+			Body:       body,
+		}, nil
+	})
+
+	// Legacy task API
 	taskStore := task.NewStore()
 	taskHandler := handler.NewTaskHandler(taskStore, cfg.MaxBodyBytes)
-
 	apiV1 := engine.Group("/api/v1")
 	apiV1.POST("/tasks", taskHandler.Create)
 	apiV1.GET("/tasks", taskHandler.List)
@@ -97,6 +151,7 @@ func New(cfg *config.Config) (*App, error) {
 		engine: engine,
 		ready:  ready,
 		logger: logger,
+		db:     db,
 	}, nil
 }
 
@@ -115,6 +170,19 @@ func (a *App) Logger() *slog.Logger {
 	return a.logger
 }
 
+// DB returns the database connection.
+func (a *App) DB() *sql.DB {
+	return a.db
+}
+
+// Close shuts down app resources.
+func (a *App) Close() error {
+	if a.db != nil {
+		return a.db.Close()
+	}
+	return nil
+}
+
 func newLogger(levelStr string) *slog.Logger {
 	var level slog.Level
 	switch strings.ToLower(levelStr) {
@@ -128,8 +196,6 @@ func newLogger(levelStr string) *slog.Logger {
 		level = slog.LevelInfo
 	}
 
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: level,
-	})
-	return slog.New(handler)
+	h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	return slog.New(h)
 }

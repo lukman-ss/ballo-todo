@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -14,6 +16,8 @@ import (
 
 func newTestApp(t *testing.T) *App {
 	t.Helper()
+	_, currentFile, _, _ := runtime.Caller(0)
+	templateDir := filepath.Join(filepath.Dir(currentFile), "../web/templates")
 	cfg := &config.Config{
 		AppEnv:                "test",
 		HTTPAddr:              ":0",
@@ -24,11 +28,15 @@ func newTestApp(t *testing.T) *App {
 		ShutdownTimeout:       1000000000,
 		MaxBodyBytes:          1024,
 		LogLevel:              "error",
+		DBPath:                filepath.Join(t.TempDir(), "test.db"),
+		Timezone:              "UTC",
+		TemplateDir:           templateDir,
 	}
 	a, err := New(cfg)
 	if err != nil {
 		t.Fatalf("failed to create app: %v", err)
 	}
+	t.Cleanup(func() { a.Close() })
 	return a
 }
 

@@ -1,0 +1,86 @@
+{{define "title"}}Edit Todo{{end}}
+
+{{define "content"}}
+<div class="form-page">
+  <h1 class="form-page__title">Edit Todo</h1>
+
+  <form method="POST" action="/todos/{{.TodoID}}/edit" class="todo-form" novalidate>
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+
+    <div class="field {{if index .Errors "title"}}field--error{{end}}">
+      <label for="title" class="label">Judul <span class="required" aria-hidden="true">*</span></label>
+      <input
+        type="text"
+        id="title"
+        name="title"
+        value="{{.Values.Title}}"
+        class="input"
+        maxlength="200"
+        required
+        aria-required="true"
+        {{if index .Errors "title"}}aria-describedby="title-error"{{end}}
+      >
+      {{if index .Errors "title"}}
+      <p id="title-error" class="field-error" role="alert">{{index .Errors "title"}}</p>
+      {{end}}
+    </div>
+
+    <div class="field {{if index .Errors "notes"}}field--error{{end}}">
+      <label for="notes" class="label">Catatan</label>
+      <textarea
+        id="notes"
+        name="notes"
+        class="input textarea"
+        maxlength="5000"
+        rows="4"
+        {{if index .Errors "notes"}}aria-describedby="notes-error"{{end}}
+      >{{.Values.Notes}}</textarea>
+      {{if index .Errors "notes"}}
+      <p id="notes-error" class="field-error" role="alert">{{index .Errors "notes"}}</p>
+      {{end}}
+    </div>
+
+    <div class="field {{if index .Errors "priority"}}field--error{{end}}">
+      <label for="priority" class="label">Prioritas</label>
+      <select id="priority" name="priority" class="select"
+              {{if index .Errors "priority"}}aria-describedby="priority-error"{{end}}>
+        <option value="low"    {{if eq .Values.Priority "low"}}selected{{end}}>Rendah</option>
+        <option value="medium" {{if eq .Values.Priority "medium"}}selected{{else if eq .Values.Priority ""}}selected{{end}}>Sedang</option>
+        <option value="high"   {{if eq .Values.Priority "high"}}selected{{end}}>Tinggi</option>
+      </select>
+      {{if index .Errors "priority"}}
+      <p id="priority-error" class="field-error" role="alert">{{index .Errors "priority"}}</p>
+      {{end}}
+    </div>
+
+    <div class="field {{if index .Errors "due_date"}}field--error{{end}}">
+      <label for="due_date" class="label">Tenggat <span class="optional">(opsional)</span></label>
+      <input
+        type="date"
+        id="due_date"
+        name="due_date"
+        value="{{.Values.DueDate}}"
+        class="input input--date"
+        {{if index .Errors "due_date"}}aria-describedby="due_date-error"{{end}}
+      >
+      {{if index .Errors "due_date"}}
+      <p id="due_date-error" class="field-error" role="alert">{{index .Errors "due_date"}}</p>
+      {{end}}
+
+      {{if .Values.DueDate}}
+      <div class="field-hint">
+        <label class="checkbox-label">
+          <input type="checkbox" name="clear_due_date" value="1" class="checkbox">
+          Hapus Tenggat
+        </label>
+      </div>
+      {{end}}
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn--primary" data-disable-on-submit>Simpan</button>
+      <a href="/" class="btn btn--secondary">Batal</a>
+    </div>
+  </form>
+</div>
+{{end}}

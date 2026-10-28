@@ -26,3 +26,9 @@ coverage.html
 # OS artifacts
 .DS_Store
 Thumbs.db
+
+# SQLite database files
+data/
+*.db
+*.db-shm
+*.db-wal

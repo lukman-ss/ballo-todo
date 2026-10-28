@@ -1,0 +1,152 @@
+{{define "title"}}Daftar Todo{{end}}
+
+{{define "content"}}
+<section class="summary-bar" aria-label="Ringkasan">
+  <span class="summary-item">{{.Summary.Active}} aktif</span>
+  <span class="summary-sep">·</span>
+  <span class="summary-item">{{.Summary.Completed}} selesai</span>
+  <span class="summary-sep">·</span>
+  <span class="summary-item summary-item--overdue">{{.Summary.Overdue}} terlambat</span>
+</section>
+
+<section class="quick-add" aria-label="Tambah cepat">
+  <form method="POST" action="/todos" class="quick-add-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <label for="quick-title" class="sr-only">Judul todo baru</label>
+    <input
+      type="text"
+      id="quick-title"
+      name="title"
+      class="input quick-add-input"
+      placeholder="Tambah todo baru…"
+      maxlength="200"
+      required
+      aria-label="Judul todo baru"
+    >
+    <button type="submit" class="btn btn--primary">Tambah</button>
+  </form>
+  <a href="/todos/new" class="btn btn--secondary">+ Detail</a>
+</section>
+
+<div class="toolbar">
+  <nav class="filter-tabs" aria-label="Filter todo">
+    <a href="?filter=all&q={{.Search}}&sort={{.Sort}}"
+       class="filter-tab {{if eq .Filter "all"}}filter-tab--active{{end}}"
+       {{if eq .Filter "all"}}aria-current="page"{{end}}>Semua</a>
+    <a href="?filter=active&q={{.Search}}&sort={{.Sort}}"
+       class="filter-tab {{if eq .Filter "active"}}filter-tab--active{{end}}"
+       {{if eq .Filter "active"}}aria-current="page"{{end}}>Aktif</a>
+    <a href="?filter=completed&q={{.Search}}&sort={{.Sort}}"
+       class="filter-tab {{if eq .Filter "completed"}}filter-tab--active{{end}}"
+       {{if eq .Filter "completed"}}aria-current="page"{{end}}>Selesai</a>
+  </nav>
+
+  <form method="GET" action="/" class="search-form" role="search">
+    <input type="hidden" name="filter" value="{{.Filter}}">
+    <input type="hidden" name="sort" value="{{.Sort}}">
+    <label for="search-input" class="sr-only">Cari todo</label>
+    <input
+      type="search"
+      id="search-input"
+      name="q"
+      value="{{.Search}}"
+      class="input search-input"
+      placeholder="Cari todo…"
+      aria-label="Cari todo"
+    >
+    <button type="submit" class="btn btn--secondary">Cari</button>
+  </form>
+
+  <div class="sort-wrapper">
+    <label for="sort-select" class="sort-label">Urutkan:</label>
+    <select id="sort-select" name="sort" class="select" data-auto-submit
+            onchange="this.form.submit()"
+            form="sort-form"
+            aria-label="Urutkan todo">
+      <option value="newest" {{if eq .Sort "newest"}}selected{{end}}>Terbaru</option>
+      <option value="due"    {{if eq .Sort "due"}}selected{{end}}>Tenggat</option>
+      <option value="priority" {{if eq .Sort "priority"}}selected{{end}}>Prioritas</option>
+    </select>
+    <form id="sort-form" method="GET" action="/">
+      <input type="hidden" name="filter" value="{{.Filter}}">
+      <input type="hidden" name="q" value="{{.Search}}">
+    </form>
+  </div>
+</div>
+
+{{if .Todos}}
+<ul class="todo-list" aria-label="Daftar todo">
+  {{range .Todos}}
+  <li class="todo-card {{if .Completed}}todo-card--completed{{end}} {{if .Overdue}}todo-card--overdue{{end}}">
+    <form method="POST" action="/todos/{{.ID}}/toggle" class="toggle-form">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <button
+        type="submit"
+        class="checkbox-btn"
+        aria-label="{{if .Completed}}Tandai belum selesai{{else}}Tandai selesai{{end}}: {{.Title}}"
+        title="{{if .Completed}}Tandai belum selesai{{else}}Tandai selesai{{end}}"
+      >
+        {{if .Completed}}☑{{else}}☐{{end}}
+      </button>
+    </form>
+
+    <div class="todo-body">
+      <span class="todo-title {{if .Completed}}todo-title--done{{end}}">{{.Title}}</span>
+      {{if .Notes}}
+      <p class="todo-notes">{{if gt (len .Notes) 80}}{{slice .Notes 0 80}}…{{else}}{{.Notes}}{{end}}</p>
+      {{end}}
+      <div class="todo-meta">
+        <span class="priority-badge priority-badge--{{.Priority}}">
+          {{if eq .Priority "high"}}▲ Tinggi{{else if eq .Priority "medium"}}● Sedang{{else}}▼ Rendah{{end}}
+        </span>
+        {{if .DueDateFormatted}}
+        <span class="due-date {{if .Overdue}}due-date--overdue{{end}}">
+          {{if .Overdue}}<span class="overdue-label">⚠ Terlambat!</span>{{end}}
+          {{.DueDateFormatted}}
+        </span>
+        {{end}}
+        {{if .CreatedAt}}
+        <span class="created-at">{{.CreatedAt}}</span>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="todo-actions">
+      <a href="/todos/{{.ID}}/edit" class="btn btn--secondary btn--sm">Edit</a>
+      <form method="POST" action="/todos/{{.ID}}/delete" class="delete-form">
+        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+        <button type="submit" class="btn btn--danger btn--sm" aria-label="Hapus: {{.Title}}">Hapus</button>
+      </form>
+    </div>
+  </li>
+  {{end}}
+</ul>
+
+<nav class="pagination" aria-label="Halaman">
+  {{if .HasPrev}}
+  <a href="?filter={{.Filter}}&q={{.Search}}&sort={{.Sort}}&page={{sub .Page 1}}" class="btn btn--secondary">← Sebelumnya</a>
+  {{else}}
+  <span class="btn btn--secondary btn--disabled" aria-disabled="true">← Sebelumnya</span>
+  {{end}}
+  <span class="page-info">Halaman {{.Page}}</span>
+  {{if .HasNext}}
+  <a href="?filter={{.Filter}}&q={{.Search}}&sort={{.Sort}}&page={{add .Page 1}}" class="btn btn--secondary">Berikutnya →</a>
+  {{else}}
+  <span class="btn btn--secondary btn--disabled" aria-disabled="true">Berikutnya →</span>
+  {{end}}
+</nav>
+
+{{else}}
+  {{if .Search}}
+  <div class="empty-state">
+    <p class="empty-state__title">Tidak ada hasil untuk "<strong>{{.Search}}</strong>"</p>
+    <a href="?filter={{.Filter}}&sort={{.Sort}}" class="btn btn--secondary">Hapus pencarian</a>
+  </div>
+  {{else}}
+  <div class="empty-state">
+    <p class="empty-state__title">Belum ada todo.</p>
+    <p class="empty-state__sub">Tambahkan todo pertamamu di atas!</p>
+  </div>
+  {{end}}
+{{end}}
+{{end}}
