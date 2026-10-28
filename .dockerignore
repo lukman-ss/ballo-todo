@@ -1,0 +1,23 @@
+# Build artifacts
+bin/
+dist/
+
+# Go test cache
+*.test
+*.out
+
+# Coverage
+coverage.html
+coverage.out
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Local env overrides (not .env.example)
+.env
