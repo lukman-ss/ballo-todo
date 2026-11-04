@@ -6,9 +6,9 @@ Aplikasi web todo single-user menggunakan [Ballo](https://github.com/lukman-ss/b
 
 | Komponen | Versi |
 |---|---|
-| Go | 1.23.0 |
+| Go | 1.26.0 |
 | Ballo | `v0.0.0-20261027061017-e84a7679c8a4` |
-| modernc.org/sqlite | lihat `go.mod` (pure Go, tanpa CGO) |
+| modernc.org/sqlite | v1.61.0 (pure Go, tanpa CGO) |
 
 ## Fitur
 
@@ -44,7 +44,7 @@ curl http://localhost:8080/readyz
 
 ## Instalasi
 
-Prasyarat: Go 1.23+. Tidak ada CGO, tidak perlu gcc atau SQLite library sistem.
+Prasyarat: Go 1.26+. Tidak ada CGO, tidak perlu gcc atau SQLite library sistem.
 
 ```bash
 go mod download
@@ -176,6 +176,7 @@ docker run --rm \
 | `POST` | `/todos/:id/edit` | Simpan perubahan todo |
 | `POST` | `/todos/:id/toggle` | Toggle status selesai |
 | `POST` | `/todos/:id/delete` | Hapus todo |
+| `GET` | `/static/*filepath` | Asset statis (`style.css`, `app.js`, dll) |
 
 ### REST API (dari starter)
 
