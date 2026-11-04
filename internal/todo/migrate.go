@@ -2,20 +2,23 @@ package todo
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 )
 
 // Migrate applies schema migrations to db. Safe to call multiple times.
 // Returns error if migration fails (caller should abort startup).
 func Migrate(db *sql.DB) error {
+	// schema_migrations must be created first
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
 		version    INTEGER PRIMARY KEY,
 		applied_at TEXT NOT NULL
 	)`)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create schema_migrations: %w", err)
 	}
 
+	// todos table definition
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS todos (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		title      TEXT    NOT NULL,
@@ -27,13 +30,15 @@ func Migrate(db *sql.DB) error {
 		updated_at TEXT    NOT NULL
 	)`)
 	if err != nil {
+		return fmt.Errorf("failed to create todos: %w", err)
+	}
+
+	// Apply version 1 migration (schema already created above, just record it)
+	if err := applyMigration(db, 1, func(tx *sql.Tx) error { return nil }); err != nil {
 		return err
 	}
 
-	return applyMigration(db, 1, func(tx *sql.Tx) error {
-		// version 1: initial schema (tables already created above; record applied)
-		return nil
-	})
+	return nil
 }
 
 func applyMigration(db *sql.DB, version int, fn func(*sql.Tx) error) error {

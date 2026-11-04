@@ -7,7 +7,7 @@ Aplikasi web todo single-user menggunakan [Ballo](https://github.com/lukman-ss/b
 | Komponen | Versi |
 |---|---|
 | Go | 1.26.0 |
-| Ballo | `v0.0.0-20261027061017-e84a7679c8a4` |
+| Ballo | `v0.1.0` |
 | modernc.org/sqlite | v1.61.0 (pure Go, tanpa CGO) |
 
 ## Fitur
@@ -109,9 +109,7 @@ go build ./...
 
 ## Backup & Restore SQLite
 
-**Jangan salin file `.db` saat aplikasi berjalan** — WAL mode memerlukan ketiga file (`*.db`, `*.db-wal`, `*.db-shm`) dalam kondisi konsisten.
-
-Cara backup yang benar menggunakan SQLite online backup:
+**Jangan hanya salin file `.db` saat aplikasi berjalan** — pada WAL mode, ketiga file (`*.db`, `*.db-wal`, `*.db-shm`) harus konsisten. Cara paling aman adalah menggunakan SQLite online backup atau checkpoint WAL terlebih dahulu.
 
 ```bash
 # Backup (aman saat aplikasi berjalan)

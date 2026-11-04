@@ -111,12 +111,22 @@ func scanTodo(row *sql.Row) (*Todo, error) {
 		return nil, err
 	}
 	t.Completed = completed == 1
-	t.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	t.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	t.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+	if err != nil {
+		return nil, fmt.Errorf("invalid created_at timestamp: %w", err)
+	}
+	t.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("invalid updated_at timestamp: %w", err)
+	}
 	return &t, nil
 }
 
 func scanTodoFromRows(rows *sql.Rows) (*Todo, error) {
+	if !rows.Next() {
+		return nil, sql.ErrNoRows
+	}
+
 	var t Todo
 	var completed int
 	var createdAt, updatedAt string
@@ -125,8 +135,14 @@ func scanTodoFromRows(rows *sql.Rows) (*Todo, error) {
 		return nil, err
 	}
 	t.Completed = completed == 1
-	t.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	t.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	t.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+	if err != nil {
+		return nil, fmt.Errorf("invalid created_at timestamp: %w", err)
+	}
+	t.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("invalid updated_at timestamp: %w", err)
+	}
 	return &t, nil
 }
 
@@ -162,7 +178,6 @@ func (s *Store) List(filter ListFilter) ([]*Todo, error) {
 	var orderBy string
 	switch filter.Sort {
 	case "due":
-		// todos with due_date first, then without; secondary: priority DESC (high>medium>low), id DESC
 		orderBy = `ORDER BY
 			CASE WHEN due_date = '' THEN 1 ELSE 0 END ASC,
 			due_date ASC,
@@ -173,7 +188,7 @@ func (s *Store) List(filter ListFilter) ([]*Todo, error) {
 			CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END ASC,
 			created_at DESC,
 			id DESC`
-	default: // "newest"
+	default:
 		orderBy = `ORDER BY created_at DESC, id DESC`
 	}
 
@@ -191,14 +206,17 @@ func (s *Store) List(filter ListFilter) ([]*Todo, error) {
 	defer rows.Close()
 
 	var todos []*Todo
-	for rows.Next() {
-		t, err := scanTodoFromRows(rows)
+	for {
+		todo, err := scanTodoFromRows(rows)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				break
+			}
 			return nil, err
 		}
-		todos = append(todos, t)
+		todos = append(todos, todo)
 	}
-	return todos, rows.Err()
+	return todos, nil
 }
 
 func (s *Store) Update(id int64, req UpdateReq) (*Todo, error) {

@@ -2,8 +2,10 @@ package web
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/lukman-ss/ballo"
@@ -37,16 +39,27 @@ func SetCSRFCookie(w http.ResponseWriter, token string) {
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isSecure(),
 		SameSite: http.SameSiteStrictMode,
 	})
 }
 
+func isSecure() bool {
+	if os.Getenv("APP_ENV") == "production" {
+		return true
+	}
+	if os.Getenv("CSRF_SECURE") == "true" {
+		return true
+	}
+	return false
+}
+
 // CSRFMiddleware enforces double-submit cookie CSRF protection on mutating methods.
-// Skips paths under /api/ (JSON API uses other auth mechanisms).
+// API routes under /api/ are skipped; CSRF protection is not enforced for unauthenticated JSON API calls.
 func CSRFMiddleware() ballo.Middleware {
 	return func(next ballo.Handler) ballo.Handler {
 		return func(req *ballo.Request) (*ballo.Response, error) {
-			// Skip CSRF for API routes
+			// Skip CSRF for API routes (JSON API does not use session-based auth here)
 			if strings.HasPrefix(req.URL.Path, "/api/") {
 				return next(req)
 			}
@@ -63,7 +76,7 @@ func CSRFMiddleware() ballo.Middleware {
 				_ = req.Request.ParseForm()
 				formToken := req.Request.FormValue("csrf_token")
 				cookieToken := GetCSRFToken(req.Request)
-				if cookieToken == "" || formToken != cookieToken {
+				if cookieToken == "" || formToken == "" || subtle.ConstantTimeCompare([]byte(formToken), []byte(cookieToken)) != 1 {
 					return ballo.HTML(http.StatusForbidden,
 						`<!DOCTYPE html><html><body><h1>403 Forbidden</h1><p>CSRF token tidak valid.</p><a href="/">← Kembali</a></body></html>`), nil
 				}
@@ -80,6 +93,7 @@ func CSRFMiddleware() ballo.Middleware {
 					Value:    token,
 					Path:     "/",
 					HttpOnly: true,
+					Secure:   isSecure(),
 					SameSite: http.SameSiteStrictMode,
 				}
 				resp.Header.Add("Set-Cookie", c.String())

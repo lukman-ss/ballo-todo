@@ -3,13 +3,15 @@ module github.com/lukman-ss/ballo-todo
 go 1.26.0
 
 require (
-	github.com/lukman-ss/ballo v0.0.0-20261027061017-e84a7679c8a4
+	github.com/lukman-ss/ballo v0.1.0
 	modernc.org/sqlite v1.61.0
 )
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/lukman-ss/ballo-http v0.1.0 // indirect
+	github.com/lukman-ss/ballo-render v0.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

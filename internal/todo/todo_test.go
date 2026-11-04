@@ -10,6 +10,58 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func TestScanTodo_invalidTimestamp(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := Migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	// Insert row with invalid timestamp
+	if _, err := db.Exec(`INSERT INTO todos (title, notes, completed, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"Test", "", 0, "medium", "", "not-a-timestamp", "2026-11-04T07:40:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	row := db.QueryRow(`SELECT id, title, notes, completed, priority, due_date, created_at, updated_at FROM todos WHERE id = 1`)
+	_, err = scanTodo(row)
+	if err == nil {
+		t.Fatal("expected error for invalid created_at timestamp")
+	}
+	if err.Error() != "invalid created_at timestamp: parsing time \"not-a-timestamp\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"not-a-timestamp\" as \"2006\"" {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestScanTodoFromRows_invalidTimestamp(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := Migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	// Insert row with invalid timestamp
+	if _, err := db.Exec(`INSERT INTO todos (title, notes, completed, priority, due_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"Test", "", 0, "medium", "", "2026-11-04T07:40:00Z", "not-a-timestamp"); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.Query(`SELECT id, title, notes, completed, priority, due_date, created_at, updated_at FROM todos WHERE id = 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	_, err = scanTodoFromRows(rows)
+	if err == nil {
+		t.Fatal("expected error for invalid updated_at timestamp")
+	}
+	if err.Error() != "invalid updated_at timestamp: parsing time \"not-a-timestamp\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"not-a-timestamp\" as \"2006\"" {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")
@@ -295,7 +347,6 @@ func TestConcurrent(t *testing.T) {
 		t.Errorf("expected 20 todos, got %d", len(todos))
 	}
 }
-
 func TestMigrate_idempotent(t *testing.T) {
 	db := newTestDB(t) // already migrated once
 	if err := Migrate(db); err != nil {
