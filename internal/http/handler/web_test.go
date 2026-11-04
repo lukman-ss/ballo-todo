@@ -278,3 +278,16 @@ func TestCSRF_invalid(t *testing.T) {
 		t.Fatalf("want 403, got %d", w.Code)
 	}
 }
+
+func TestCSRF_APIskipped(t *testing.T) {
+	a := newTestApp(t)
+	// POST to /api/v1/tasks without CSRF cookie or token should succeed
+	body := strings.NewReader(`{"title":"test"}`)
+	req := httptest.NewRequest("POST", "/api/v1/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	a.Engine().ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("want 201 for API route without CSRF, got %d", w.Code)
+	}
+}

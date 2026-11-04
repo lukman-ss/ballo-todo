@@ -85,7 +85,7 @@ File-file SQLite:
 
 File-file ini **tidak masuk Git** (tercantum di `.gitignore`).
 
-Migrasi schema dijalankan otomatis saat startup. Aman dijalankan ulang (idempotent). Migrasi gagal akan menghentikan startup dengan pesan error yang jelas.
+Migrasi schema dijalankan otomatis saat startup. Aman dijalankan ulang (idempotent). Migrasi juga mengaktifkan mode WAL untuk meningkatkan kinerja baca dan keamanan backup. Migrasi gagal akan menghentikan startup dengan pesan error yang jelas.
 
 ## Build & Test
 

@@ -59,6 +59,20 @@ func TestCSRFCookie_Secure(t *testing.T) {
 	}
 }
 
+func TestCSRFCookie_NotSecure(t *testing.T) {
+	os.Unsetenv("APP_ENV")
+	os.Unsetenv("CSRF_SECURE")
+	w := httptest.NewRecorder()
+	SetCSRFCookie(w, "tok")
+	cookies := w.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("expected 1 cookie, got %d", len(cookies))
+	}
+	if cookies[0].Secure {
+		t.Error("expected non-Secure cookie in non-production")
+	}
+}
+
 func TestCSRFMiddleware_GeneratesCookie(t *testing.T) {
 	os.Setenv("APP_ENV", "production")
 	defer os.Unsetenv("APP_ENV")

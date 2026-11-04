@@ -9,6 +9,11 @@ import (
 // Migrate applies schema migrations to db. Safe to call multiple times.
 // Returns error if migration fails (caller should abort startup).
 func Migrate(db *sql.DB) error {
+	// Enable WAL mode for safer concurrent reads and backups
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		return fmt.Errorf("failed to set WAL mode: %w", err)
+	}
+
 	// schema_migrations must be created first
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
 		version    INTEGER PRIMARY KEY,

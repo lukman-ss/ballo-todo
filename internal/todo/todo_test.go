@@ -2,6 +2,7 @@ package todo
 
 import (
 	"database/sql"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -64,11 +65,12 @@ func TestScanTodoFromRows_invalidTimestamp(t *testing.T) {
 
 func newTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
+	tmp := t.TempDir()
+	dbPath := filepath.Join(tmp, "test.db")
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// ponytail: single conn keeps :memory: DB alive and shared across goroutines
 	db.SetMaxOpenConns(1)
 	if err := Migrate(db); err != nil {
 		t.Fatal(err)
@@ -351,5 +353,20 @@ func TestMigrate_idempotent(t *testing.T) {
 	db := newTestDB(t) // already migrated once
 	if err := Migrate(db); err != nil {
 		t.Fatalf("second Migrate call failed: %v", err)
+	}
+}
+
+func TestMigrate_WALMode(t *testing.T) {
+	db := newTestDB(t)
+	// migrate sets WAL mode
+	if err := Migrate(db); err != nil {
+		t.Fatalf("Migrate failed: %v", err)
+	}
+	var mode string
+	if err := db.QueryRow("PRAGMA journal_mode").Scan(&mode); err != nil {
+		t.Fatal(err)
+	}
+	if strings.ToLower(mode) != "wal" {
+		t.Errorf("expected journal_mode WAL, got %q", mode)
 	}
 }
