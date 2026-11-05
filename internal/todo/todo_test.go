@@ -2,6 +2,8 @@ package todo
 
 import (
 	"database/sql"
+	"database/sql/driver"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -368,5 +370,140 @@ func TestMigrate_WALMode(t *testing.T) {
 	}
 	if strings.ToLower(mode) != "wal" {
 		t.Errorf("expected journal_mode WAL, got %q", mode)
+	}
+}
+
+// iterErrDriver simulates rows.Next returning false with rows.Err containing an error
+type iterErrDriver struct{}
+
+func (iterErrDriver) Open(name string) (driver.Conn, error) {
+	return &iterErrConn{}, nil
+}
+
+type iterErrConn struct{}
+
+func (c *iterErrConn) Prepare(query string) (driver.Stmt, error) {
+	return &iterErrStmt{}, nil
+}
+func (c *iterErrConn) Close() error              { return nil }
+func (c *iterErrConn) Begin() (driver.Tx, error) { return nil, fmt.Errorf("not supported") }
+
+type iterErrStmt struct{}
+
+func (s *iterErrStmt) Close() error  { return nil }
+func (s *iterErrStmt) NumInput() int { return -1 }
+func (s *iterErrStmt) Exec(args []driver.Value) (driver.Result, error) {
+	return nil, fmt.Errorf("not supported")
+}
+func (s *iterErrStmt) Query(args []driver.Value) (driver.Rows, error) {
+	return &iterErrRows{err: fmt.Errorf("row iteration error")}, nil
+}
+
+type iterErrRows struct {
+	err       error
+	hasResult bool
+}
+
+func (r *iterErrRows) Columns() []string {
+	return []string{"id", "title", "notes", "completed", "priority", "due_date", "created_at", "updated_at"}
+}
+func (r *iterErrRows) Close() error { return nil }
+func (r *iterErrRows) Next(dest []driver.Value) error {
+	// First call succeeds with valid data
+	if !r.hasResult {
+		r.hasResult = true
+		dest[0] = int64(1)
+		dest[1] = "test"
+		dest[2] = ""
+		dest[3] = int64(0)
+		dest[4] = "medium"
+		dest[5] = ""
+		dest[6] = "2026-11-04T07:40:00Z"
+		dest[7] = "2026-11-04T07:40:00Z"
+		return nil
+	}
+	// Second call signals iteration error so rows.Err() captures it
+	return fmt.Errorf("row iteration error")
+}
+func (r *iterErrRows) Err() error {
+	if r.hasResult && r.err == nil {
+		r.err = fmt.Errorf("row iteration error")
+	}
+	return r.err
+}
+func init() {
+	sql.Register("itertest", iterErrDriver{})
+}
+
+func TestList_queryError(t *testing.T) {
+	db, err := sql.Open("itertest", "")
+	if err != nil {
+		t.Fatalf("sql.Open error: %v", err)
+	}
+	defer db.Close()
+	s := NewStore(db, time.UTC)
+	_, err = s.List(ListFilter{})
+	if err == nil || err.Error() != "row iteration error" {
+		t.Fatalf("expected row iteration error, got %v", err)
+	}
+}
+
+// scanErrDriver simulates rows.Scan failure by returning incompatible type for ID
+type scanErrDriver struct{}
+
+func (scanErrDriver) Open(name string) (driver.Conn, error) {
+	return &scanErrConn{}, nil
+}
+
+type scanErrConn struct{}
+
+func (c *scanErrConn) Prepare(query string) (driver.Stmt, error) {
+	return &scanErrStmt{}, nil
+}
+func (c *scanErrConn) Close() error              { return nil }
+func (c *scanErrConn) Begin() (driver.Tx, error) { return nil, fmt.Errorf("not supported") }
+
+type scanErrStmt struct{}
+
+func (s *scanErrStmt) Close() error  { return nil }
+func (s *scanErrStmt) NumInput() int { return -1 }
+func (s *scanErrStmt) Exec(args []driver.Value) (driver.Result, error) {
+	return nil, fmt.Errorf("not supported")
+}
+func (s *scanErrStmt) Query(args []driver.Value) (driver.Rows, error) {
+	return &scanErrRows{}, nil
+}
+
+type scanErrRows struct{}
+
+func (r *scanErrRows) Columns() []string {
+	return []string{"id", "title", "notes", "completed", "priority", "due_date", "created_at", "updated_at"}
+}
+func (r *scanErrRows) Close() error { return nil }
+func (r *scanErrRows) Next(dest []driver.Value) error {
+	dest[0] = "not-an-int" // invalid type for int64 field
+	dest[1] = "test"
+	dest[2] = ""
+	dest[3] = int64(0)
+	dest[4] = "low"
+	dest[5] = ""
+	dest[6] = "2026-11-04T07:40:00Z"
+	dest[7] = "2026-11-04T07:40:00Z"
+	return nil
+}
+func init() {
+	sql.Register("scanerrtest", scanErrDriver{})
+}
+
+func TestList_scanError(t *testing.T) {
+	db, err := sql.Open("scanerrtest", "")
+	if err != nil {
+		t.Fatalf("sql.Open error: %v", err)
+	}
+	defer db.Close()
+	s := NewStore(db, time.UTC)
+	_, err = s.List(ListFilter{})
+	if err == nil || err.Error() != `sql: Scan error on column index 0, name "id": converting driver.Value type string ("not-an-int") to a int64: invalid syntax` {
+		t.Fatalf("expected scan error, got %v", err)
 	}
 }

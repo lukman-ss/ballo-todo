@@ -124,6 +124,9 @@ func scanTodo(row *sql.Row) (*Todo, error) {
 
 func scanTodoFromRows(rows *sql.Rows) (*Todo, error) {
 	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 		return nil, sql.ErrNoRows
 	}
 
@@ -132,15 +135,18 @@ func scanTodoFromRows(rows *sql.Rows) (*Todo, error) {
 	var createdAt, updatedAt string
 	err := rows.Scan(&t.ID, &t.Title, &t.Notes, &completed, &t.Priority, &t.DueDate, &createdAt, &updatedAt)
 	if err != nil {
+		rows.Close()
 		return nil, err
 	}
 	t.Completed = completed == 1
 	t.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
 	if err != nil {
+		rows.Close()
 		return nil, fmt.Errorf("invalid created_at timestamp: %w", err)
 	}
 	t.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
 	if err != nil {
+		rows.Close()
 		return nil, fmt.Errorf("invalid updated_at timestamp: %w", err)
 	}
 	return &t, nil
@@ -215,6 +221,9 @@ func (s *Store) List(filter ListFilter) ([]*Todo, error) {
 			return nil, err
 		}
 		todos = append(todos, todo)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return todos, nil
 }
